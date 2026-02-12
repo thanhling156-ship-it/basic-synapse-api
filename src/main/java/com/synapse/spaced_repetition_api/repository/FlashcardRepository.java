@@ -18,4 +18,10 @@ public interface FlashcardRepository extends JpaRepository<Flashcard, Long> {
 
     // Tìm kiếm thẻ theo nội dung, không phân biệt hoa thường
     List<Flashcard> findByContextContainingIgnoreCase(String context);
+
+    // Phép toán tìm kiếm 3 thẻ có khoảng cách vector nhỏ nhất (giống nhất)
+    @Query(value = "SELECT * FROM cards " +
+            "ORDER BY embedding <=> CAST(:queryVector AS vector) " +
+            "LIMIT 3", nativeQuery = true)
+    List<Flashcard> findNearest(@Param("queryVector") float[] queryVector);
 }

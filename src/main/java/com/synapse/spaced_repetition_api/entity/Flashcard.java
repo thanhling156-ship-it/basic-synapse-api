@@ -1,7 +1,10 @@
 package com.synapse.spaced_repetition_api.entity;
 
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.synapse.spaced_repetition_api.converter.VectorConverter;
 import jakarta.persistence.*;
+import org.hibernate.annotations.Array;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -30,6 +33,11 @@ public class Flashcard {
     @ManyToOne
     @JoinColumn(name = "user_id")
     private User user;
+
+    @JdbcTypeCode(SqlTypes.VECTOR) // Khai báo đây là kiểu VECTOR chính hiệu
+    @Array(length = 768)          // Bắt buộc khai báo số chiều cho Hibernate
+    @Column(name = "embedding", columnDefinition = "vector(768)")
+    private float[] embedding;
 
     @Column(name = "intervals", columnDefinition = "jsonb")
     @JdbcTypeCode(SqlTypes.JSON)
@@ -97,5 +105,13 @@ public class Flashcard {
 
     public void setNextReviewDate(LocalDateTime nextReviewDate) {
         this.nextReviewDate = nextReviewDate;
+    }
+
+    public float[] getEmbedding() {
+        return embedding;
+    }
+
+    public void setEmbedding(float[] embedding) {
+        this.embedding = embedding;
     }
 }

@@ -3,6 +3,7 @@ package com.synapse.spaced_repetition_api.service;
 
 import com.synapse.spaced_repetition_api.entity.Flashcard;
 import com.synapse.spaced_repetition_api.repository.FlashcardRepository;
+import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,14 +17,24 @@ public class FlashcardService {
     private FlashcardRepository repository;
 
 
+    @Autowired
+    private EmbeddingModel embeddingModel;
+
+
     @Transactional
-    public void processStudyResponse(Long cardId,boolean isCorrect){
-        Flashcard card = repository.findById(cardId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy thẻ với ID: " + cardId));
-        List<Integer> intervals = card.getCustomIntervals();
-        calculateNextReviewDate(card,isCorrect);
-        System.out.println("Card ID: " + cardId + " | New Level: " + card.getLevel());
-        repository.save(card);
+    public String processStudyResponse(Long cardId, boolean isCorrect) {
+        // 1. Chặn đứng lỗi Null ngay từ đầu
+        if (cardId == null) {
+            return "❌ LỖI: Bạn chưa cung cấp ID của thẻ. Hãy gọi hàm 'searchFlashcardPremium' trước để lấy ID chính xác.";
+        }
+
+        return repository.findById(cardId)
+                .map(card -> {
+                    calculateNextReviewDate(card, isCorrect);
+                    repository.save(card);
+                    return "✅ Thành công: Đã cập nhật kết quả cho thẻ '" + card.getContext() + "'.";
+                })
+                .orElse("❌ LỖI: Không tìm thấy thẻ với ID: " + cardId);
     }
 
     // 4. Hàm Helper tính toán (Logic lõi)
@@ -69,10 +80,25 @@ public class FlashcardService {
         card.setNextReviewDate(LocalDateTime.now());
         card.setLastTime(null);
 
+        float[] vector = embeddingModel.embed(content);
+        card.setEmbedding(vector);
+
         repository.save(card);
     }
 
     public List<Flashcard> getDueFlashcards() {
         return repository.findByNextReviewDateBefore(LocalDateTime.now());
+    }
+
+    public List<Flashcard> searchSemantic(String userText) {
+        // BƯỚC 1: BIẾN CHỮ THÀNH SỐ (Embedding)
+        // Spring AI gửi câu "Tôi thuộc bài Gauss" sang Ollama
+        // Nhận về mảng float[768] đại diện cho ý nghĩa
+        float[] queryVector = embeddingModel.embed(userText);
+
+        // BƯỚC 2: TRUY VẤN KHÔNG GIAN (Vector Search)
+        // Ném vector này vào Repository để tìm các thẻ "gần" nhất trong DB
+        // Sử dụng toán tử <=> (Cosine Distance) đã cấu hình
+        return repository.findNearest(queryVector);
     }
 }
