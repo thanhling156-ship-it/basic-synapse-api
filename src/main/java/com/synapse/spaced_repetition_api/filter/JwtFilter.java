@@ -20,6 +20,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+//Đây là nơi đầu tiên request vào
 @Component
 @Service
 public class JwtFilter extends OncePerRequestFilter {

@@ -9,6 +9,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
 @Configuration
 public class SecurityConfig {
     @Autowired
@@ -24,10 +25,10 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/**","/bank/**").permitAll()
-                        .anyRequest().permitAll()
+                        .anyRequest().authenticated()//cần sửa
                 );
 
-        //Đăng ký class kiểm tra Username/Password, dùng ở login
+        //ĐĂNG KÝ class kiểm tra Username/Password, dùng ở login, KHÔNG THỰC HIỆN LOGIC
         //Ở sau jwtFilter
         http.authenticationProvider(authenticationProvider);
 

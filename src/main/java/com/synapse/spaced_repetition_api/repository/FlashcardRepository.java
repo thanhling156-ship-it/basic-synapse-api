@@ -19,9 +19,16 @@ public interface FlashcardRepository extends JpaRepository<Flashcard, Long> {
     // Tìm kiếm thẻ theo nội dung, không phân biệt hoa thường
     List<Flashcard> findByContextContainingIgnoreCase(String context);
 
-    // Phép toán tìm kiếm 3 thẻ có khoảng cách vector nhỏ nhất (giống nhất)
+    // Thêm tham số username vào hàm tìm kiếm
     @Query(value = "SELECT * FROM cards " +
+            "WHERE owner_username = :username " + // Khóa chặt "cánh cửa" dữ liệu
             "ORDER BY embedding <=> CAST(:queryVector AS vector) " +
             "LIMIT 3", nativeQuery = true)
-    List<Flashcard> findNearest(@Param("queryVector") float[] queryVector);
+    List<Flashcard> findNearest(
+            @Param("queryVector") float[] queryVector,
+            @Param("username") String username
+    );
+
+    // Spring Data JPA sẽ tự hiểu: tìm theo ID của Card và Username của User liên kết
+    Optional<Flashcard> findByIdAndUserUsername(Long id, String username);
 }

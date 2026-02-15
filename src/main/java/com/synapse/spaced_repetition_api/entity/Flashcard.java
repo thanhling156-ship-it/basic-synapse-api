@@ -1,8 +1,5 @@
 package com.synapse.spaced_repetition_api.entity;
 
-
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.synapse.spaced_repetition_api.converter.VectorConverter;
 import jakarta.persistence.*;
 import org.hibernate.annotations.Array;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -12,7 +9,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-
 @Entity
 @Table(name = "cards")
 public class Flashcard {
@@ -21,97 +17,56 @@ public class Flashcard {
     private Long id;
 
     private LocalDateTime date;
-
     private LocalDateTime lastTime;
-
     private LocalDateTime nextReviewDate;
-
     private int level = 0;
 
+    @Column(columnDefinition = "TEXT")
     private String context;
 
+    // --- ĐOẠN THAY ĐỔI QUAN TRỌNG NHẤT ---
     @ManyToOne
-    @JoinColumn(name = "user_id")
+    @JoinColumn(
+            name = "owner_username",         // Tên cột trong bảng 'cards'
+            referencedColumnName = "username" // Tên cột trong bảng 'users'
+    )
     private User user;
+    // ------------------------------------
 
-    @JdbcTypeCode(SqlTypes.VECTOR) // Khai báo đây là kiểu VECTOR chính hiệu
-    @Array(length = 768)          // Bắt buộc khai báo số chiều cho Hibernate
+    @JdbcTypeCode(SqlTypes.VECTOR)
+    @Array(length = 768)
     @Column(name = "embedding", columnDefinition = "vector(768)")
     private float[] embedding;
 
     @Column(name = "intervals", columnDefinition = "jsonb")
     @JdbcTypeCode(SqlTypes.JSON)
-    private List<Integer> customIntervals = new ArrayList<>(List.of(1, 3, 7, 15, 30));;
+    private List<Integer> customIntervals = new ArrayList<>(List.of(1, 3, 7, 15, 30));
 
-    public List<Integer> getCustomIntervals() {
-        return customIntervals;
-    }
+    // --- GETTERS & SETTERS ---
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
 
-    public Long getId() {
-        return id;
-    }
+    public User getUser() { return user; }
+    public void setUser(User user) { this.user = user; }
 
-    public void setId(Long id) {
-        this.id = id;
-    }
+    public String getContext() { return context; }
+    public void setContext(String context) { this.context = context; }
 
-    public void setCustomIntervals(List<Integer> customIntervals) {
-        this.customIntervals = customIntervals;
-    }
+    public int getLevel() { return level; }
+    public void setLevel(int level) { this.level = level; }
 
-    public User getUser() {
-        return user;
-    }
+    public LocalDateTime getDate() { return date; }
+    public void setDate(LocalDateTime date) { this.date = date; }
 
-    public void setUser(User user) {
-        this.user = user;
-    }
+    public LocalDateTime getLastTime() { return lastTime; }
+    public void setLastTime(LocalDateTime lastTime) { this.lastTime = lastTime; }
 
-    public String getContext() {
-        return context;
-    }
+    public LocalDateTime getNextReviewDate() { return nextReviewDate; }
+    public void setNextReviewDate(LocalDateTime nextReviewDate) { this.nextReviewDate = nextReviewDate; }
 
-    public void setContext(String context) {
-        this.context = context;
-    }
+    public List<Integer> getCustomIntervals() { return customIntervals; }
+    public void setCustomIntervals(List<Integer> customIntervals) { this.customIntervals = customIntervals; }
 
-    public int getLevel() {
-        return level;
-    }
-
-    public void setLevel(int level) {
-        this.level = level;
-    }
-
-    public LocalDateTime getDate() {
-        return date;
-    }
-
-    public void setDate(LocalDateTime date) {
-        this.date = date;
-    }
-
-    public LocalDateTime getLastTime() {
-        return lastTime;
-    }
-
-    public void setLastTime(LocalDateTime lastTime) {
-        this.lastTime = lastTime;
-    }
-
-    public LocalDateTime getNextReviewDate() {
-        return nextReviewDate;
-    }
-
-    public void setNextReviewDate(LocalDateTime nextReviewDate) {
-        this.nextReviewDate = nextReviewDate;
-    }
-
-    public float[] getEmbedding() {
-        return embedding;
-    }
-
-    public void setEmbedding(float[] embedding) {
-        this.embedding = embedding;
-    }
+    public float[] getEmbedding() { return embedding; }
+    public void setEmbedding(float[] embedding) { this.embedding = embedding; }
 }

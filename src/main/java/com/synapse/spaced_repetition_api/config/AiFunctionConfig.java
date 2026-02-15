@@ -5,12 +5,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.synapse.spaced_repetition_api.repository.FlashcardRepository;
 import com.synapse.spaced_repetition_api.service.FlashcardService;
-import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Description;
 
-import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -18,36 +16,30 @@ import java.util.stream.Collectors;
 public class AiFunctionConfig {
 
     private final FlashcardService flashcardService;
+    private final FlashcardRepository flashcardRepository;
+    private final ObjectMapper objectMapper;
 
-
-
-
-    public AiFunctionConfig(FlashcardService flashcardService) {
+    // Tiêm tất cả "đồ nghề" ở đây một lần duy nhất
+    public AiFunctionConfig(FlashcardService flashcardService,
+                            FlashcardRepository flashcardRepository,
+                            ObjectMapper objectMapper) {
         this.flashcardService = flashcardService;
+        this.flashcardRepository = flashcardRepository;
+        this.objectMapper = objectMapper;
     }
 
-    // Công cụ giúp AI cập nhật tiến độ học tập
+    /**
+     * HÀM 1: BASIC SEARCH (Giữ nguyên theo yêu cầu)
+     * Dùng để tìm kiếm chính xác theo từ khóa (Keyword match)
+     */
     @Bean
-    @Description("Cập nhật kết quả học tập (Đúng/Sai) cho một thẻ flashcard dựa trên ID. Chỉ gọi hàm này KHI NGƯỜI DÙNG PHẢN HỒI về việc họ thuộc bài hay chưa.")
-    public Function<StudyRequest, String> processStudyResult() {
+    @Description("Tìm kiếm Flashcard theo từ khóa chính xác. Dùng khi người dùng muốn liệt kê các thẻ chứa một từ cụ thể.")
+    public Function<SearchRequest, String> searchFlashcardBasic() {
         return request -> {
-            // AI sẽ nhận được chuỗi String trả về từ Service (dù thành công hay lỗi)
-            return flashcardService.processStudyResponse(request.cardId(), request.isCorrect());
-        };
-    }
+            if (request.searchTerm() == null) return "❌ Lỗi: Từ khóa không được để trống.";
 
-    // Định nghĩa tham số đầu vào cho AI bóc tách
-    public record StudyRequest(Long cardId, boolean isCorrect) {}
-
-    @Bean
-    @Description("Tìm kiếm ID flashcard. Tham số 'query' BẮT BUỘC phải là một chuỗi văn bản đơn giản (String), ví dụ: 'gause-jordan'. TUYỆT ĐỐI không gửi object vào đây.")
-    public Function<SearchRequest, String> searchFlashcardBasic(FlashcardRepository repository) {
-        return request -> {
-            // Kiểm tra xem query có null không trước khi tìm kiếm
-            if (request.searchTerm() == null) return "Lỗi: Tham số query không được trống.";
-
-            var results = repository.findByContextContainingIgnoreCase(request.searchTerm());
-            if (results.isEmpty()) return "Không tìm thấy thẻ.";
+            var results = flashcardRepository.findByContextContainingIgnoreCase(request.searchTerm());
+            if (results.isEmpty()) return "Không tìm thấy thẻ nào khớp từ khóa.";
 
             return results.stream()
                     .map(c -> "ID: " + c.getId() + " - " + c.getContext())
@@ -55,34 +47,53 @@ public class AiFunctionConfig {
         };
     }
 
+    /**
+     * HÀM 2: MASTER FUNCTION (Gộp Search Premium + Update Result)
+     * Đây là "cú đấm thép" giúp AI thực hiện cả 2 việc: Tìm thẻ và Cập nhật chỉ trong 1 lần gọi.
+     */
     @Bean
-    @Description("Tìm kiếm kiến thức Đại số tuyến tính. Có thể gọi nhiều lần để liên kết các khái niệm.")
-    public Function<SearchRequest, String> searchFlashcardPremium(FlashcardService service, ObjectMapper objectMapper) {
+    @Description("""
+    Cập nhật tiến độ học tập cho TỪNG kiến thức cụ thể. 
+    LƯU Ý QUAN TRỌNG: 
+    - Nếu người dùng nhắc đến nhiều kiến thức cùng lúc (ví dụ: 'Tôi thuộc bài A và B', 'Tôi đã hiểu sự khác nhau giữa A và B'), 
+      bạn BẮT BUỘC phải gọi hàm này NHIỀU LẦN: một lần cho 'A' và một lần cho 'B'. 
+    - Tuyệt đối không gộp chung nhiều kiến thức vào một lần gọi.
+    - Tham số 'context' phải là tên kiến thức ngắn gọn, súc tích.
+    - Những từ như 'nắm vững', 'hiểu bài', ... thì đều là đúng
+    """)
+    public Function<StudyByContextRequest, String> studyAndSync() {
         return request -> {
             try {
-                // Log để bạn theo dõi AI đang tìm gì trong chuỗi Multi-call
-                System.out.println("🔍 AI đang gọi Tool với từ khóa: " + request.searchTerm());
+                System.out.println("🔍 AI Architect: Đang đồng bộ tiến độ cho nội dung: " + request.context());
 
-                var results = service.searchSemantic(request.searchTerm());
-                if (results.isEmpty()) return "{\"result\":\"NOT_FOUND\"}";
+                // 1. Tự động tìm thẻ khớp nhất (Semantic Search)
+                var results = flashcardService.searchSemantic(request.context());
+                if (results.isEmpty()) return "❌ Không tìm thấy thẻ nào liên quan đến '" + request.context() + "' để cập nhật.";
 
-                // Lấy tối đa 2 kết quả để tránh làm đầy Context Window của gemini-2.5-flash-lite
-                var data = results.stream().limit(2)
-                        .map(f -> Map.of("id", f.getId(), "content", f.getContext()))
-                        .toList();
+                // 2. Lấy thẻ đứng đầu (khớp nhất) để update
+                Long targetId = results.get(0).getId();
 
-                return objectMapper.writeValueAsString(data); // Đảm bảo JSON sạch 100%
+                System.out.println("ĐÚNG HAY SAI : "+ request.isCorrect());
+                // 3. Gọi service để "hàn" dữ liệu vào Postgres
+                return flashcardService.processStudyResponse(targetId, request.isCorrect());
             } catch (Exception e) {
-                return "{\"error\":\"Lỗi xử lý dữ liệu\"}";
+                return "❌ Lỗi hệ thống: " + e.getMessage();
             }
         };
     }
 
+    // --- CÁC DTO (RECORDS) GỌN GÀNG ---
+
     public record SearchRequest(
             @JsonProperty("search_term") String searchTerm
     ) {
-        @JsonCreator
-        public SearchRequest {}
+        @JsonCreator public SearchRequest {}
     }
 
+    public record StudyByContextRequest(
+            @JsonProperty("context") String context,
+            @JsonProperty("is_correct") boolean isCorrect
+    ) {
+        @JsonCreator public StudyByContextRequest {}
+    }
 }

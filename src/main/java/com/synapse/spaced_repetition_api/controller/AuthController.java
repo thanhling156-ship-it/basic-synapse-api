@@ -27,6 +27,7 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED).body("Đăng ký thành công!");
     }
 
+    //Đây là hàm dùng để login lần đầu, export ra 1 token
     @PostMapping("/login")
     public ResponseEntity<?> authenticateUser(@RequestBody LoginDTO loginDTO) {
         // 1. Gọi AuthService để thực hiện quy trình Manager -> Provider -> Tool

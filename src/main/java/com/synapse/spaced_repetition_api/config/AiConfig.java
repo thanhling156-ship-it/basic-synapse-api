@@ -60,6 +60,8 @@ public class AiConfig {
 
      */
 
+
+    // 3.Khai báo máy dịch - EmbeddingModel
     @Bean
     public EmbeddingModel embeddingModel(GoogleGenAiEmbeddingConnectionDetails connectionDetails) {
         var options = GoogleGenAiTextEmbeddingOptions.builder()

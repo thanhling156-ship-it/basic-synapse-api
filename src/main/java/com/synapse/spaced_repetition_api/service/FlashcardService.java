@@ -2,7 +2,9 @@ package com.synapse.spaced_repetition_api.service;
 
 
 import com.synapse.spaced_repetition_api.entity.Flashcard;
+import com.synapse.spaced_repetition_api.entity.User;
 import com.synapse.spaced_repetition_api.repository.FlashcardRepository;
+import com.synapse.spaced_repetition_api.repository.UserRepository;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -14,8 +16,10 @@ import java.util.List;
 @Service
 public class FlashcardService {
     @Autowired
-    private FlashcardRepository repository;
+    private FlashcardRepository flashcardRepository;
 
+    @Autowired
+    private UserRepository userRepository;
 
     @Autowired
     private EmbeddingModel embeddingModel;
@@ -23,18 +27,21 @@ public class FlashcardService {
 
     @Transactional
     public String processStudyResponse(Long cardId, boolean isCorrect) {
-        // 1. Chặn đứng lỗi Null ngay từ đầu
-        if (cardId == null) {
-            return "❌ LỖI: Bạn chưa cung cấp ID của thẻ. Hãy gọi hàm 'searchFlashcardPremium' trước để lấy ID chính xác.";
-        }
+        if (cardId == null) return "❌ LỖI: Thiếu ID thẻ.";
 
-        return repository.findById(cardId)
+        // 1. Lấy username của phiên đăng nhập hiện tại
+        String currentUsername = getCurrentUser().getUsername();
+
+        // 2. Tìm thẻ dựa trên cả ID và quyền sở hữu
+        return flashcardRepository.findByIdAndUserUsername(cardId, currentUsername)
                 .map(card -> {
+                    // Chỉ khi tìm thấy thẻ ĐÚNG CHỦ mới cho phép tính toán
                     calculateNextReviewDate(card, isCorrect);
-                    repository.save(card);
-                    return "✅ Thành công: Đã cập nhật kết quả cho thẻ '" + card.getContext() + "'.";
+                    flashcardRepository.save(card);
+                    System.out.println("Level after updated : "+ card.getLevel()+" and context : "+card.getContext());
+                    return "✅ Thành công: Đã cập nhật kết quả.";
                 })
-                .orElse("❌ LỖI: Không tìm thấy thẻ với ID: " + cardId);
+                .orElse("❌ LỖI: Bạn không có quyền truy cập thẻ này hoặc thẻ không tồn tại.");
     }
 
     // 4. Hàm Helper tính toán (Logic lõi)
@@ -79,26 +86,34 @@ public class FlashcardService {
         card.setCustomIntervals(intervals);
         card.setNextReviewDate(LocalDateTime.now());
         card.setLastTime(null);
-
+        card.setUser(getCurrentUser());
         float[] vector = embeddingModel.embed(content);
         card.setEmbedding(vector);
 
-        repository.save(card);
+        flashcardRepository.save(card);
     }
 
     public List<Flashcard> getDueFlashcards() {
-        return repository.findByNextReviewDateBefore(LocalDateTime.now());
+        return flashcardRepository.findByNextReviewDateBefore(LocalDateTime.now());
     }
 
     public List<Flashcard> searchSemantic(String userText) {
-        // BƯỚC 1: BIẾN CHỮ THÀNH SỐ (Embedding)
-        // Spring AI gửi câu "Tôi thuộc bài Gauss" sang Ollama
-        // Nhận về mảng float[768] đại diện cho ý nghĩa
+        // 1. Lấy "danh tính" từ phiên đăng nhập
+        String currentUsername = getCurrentUser().getUsername();
+
+        // 2. Biến câu hỏi thành Vector
         float[] queryVector = embeddingModel.embed(userText);
 
-        // BƯỚC 2: TRUY VẤN KHÔNG GIAN (Vector Search)
-        // Ném vector này vào Repository để tìm các thẻ "gần" nhất trong DB
-        // Sử dụng toán tử <=> (Cosine Distance) đã cấu hình
-        return repository.findNearest(queryVector);
+        // 3. Truy vấn: Chỉ tìm những thẻ của CHÍNH TÔI mà có nghĩa gần nhất
+        return flashcardRepository.findNearest(queryVector, currentUsername);
+    }
+
+    private User getCurrentUser(){
+        String username = org.springframework.security.core.context.SecurityContextHolder
+                .getContext()
+                .getAuthentication()
+                .getName();
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("❌ LỖI: Không tìm thấy user: " + username));
     }
 }

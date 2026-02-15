@@ -9,6 +9,8 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+
+//Chỉ có nhiệm vụ lắp ráp các Bean, đưa ra công cụ(DAO) cuối cùng để sử dụng
 @Configuration
 public class ApplicationConfig {
 
