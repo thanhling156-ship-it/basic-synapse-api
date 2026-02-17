@@ -20,15 +20,15 @@ public class User {
     @Enumerated(EnumType.STRING)
     private UserRole role; // BASIC hoặc PREMIUM
 
-    private int maxFlashcards = 5;
+    private int flashcards_now = 0;
 
     public int getMaxFlashcards() {
-        return maxFlashcards;
+        if (this.role == null) {
+            return 5; // Mặc định nếu chưa có role
+        }
+        return this.role.getMaxFlashcards(); // Lấy giá trị định nghĩa sẵn trong Enum
     }
 
-    public void setMaxFlashcards(int maxFlashcards) {
-        this.maxFlashcards = maxFlashcards;
-    }
 
     @Column(unique = true, nullable = false)
     private String email;
@@ -97,5 +97,13 @@ public class User {
 
     public void setCards(List<Flashcard> cards) {
         this.flashcards = cards;
+    }
+
+    public int getFlashcards_now() {
+        return flashcards_now;
+    }
+
+    public void setFlashcards_now(int flashcards_now) {
+        this.flashcards_now = flashcards_now;
     }
 }

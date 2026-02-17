@@ -15,7 +15,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     @Autowired
     private UserRepository repo;
 
-    //Đây là hàm duy nhất được dùng tự động ở Manager
+    //Đây là hàm duy nhất được dùng tự động ở Provider thuộc Manager
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException{
         User user = repo.findByUsername(username)

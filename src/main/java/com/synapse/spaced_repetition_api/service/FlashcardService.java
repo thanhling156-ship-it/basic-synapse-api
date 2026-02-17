@@ -32,7 +32,7 @@ public class FlashcardService {
         // 1. Lấy username của phiên đăng nhập hiện tại
         String currentUsername = getCurrentUser().getUsername();
 
-        // 2. Tìm thẻ dựa trên cả ID và quyền sở hữu
+        // 2. Tìm thẻ dựa trên cả ID và quyền sở hữu để tránh lưu lệch flashcard vào ID khác
         return flashcardRepository.findByIdAndUserUsername(cardId, currentUsername)
                 .map(card -> {
                     // Chỉ khi tìm thấy thẻ ĐÚNG CHỦ mới cho phép tính toán
@@ -80,7 +80,9 @@ public class FlashcardService {
         }
     }
 
-    public void saveFlashcard(String content, List<Integer> intervals){
+    public String saveFlashcard(String content, List<Integer> intervals){
+        User user =  getCurrentUser();
+
         Flashcard card = new Flashcard();
         card.setContext(content);
         card.setCustomIntervals(intervals);
@@ -90,7 +92,22 @@ public class FlashcardService {
         float[] vector = embeddingModel.embed(content);
         card.setEmbedding(vector);
 
+        int maxFCards_now = user.getFlashcards_now();
+        int limitCards = userRepository.findFlashcardsByUsername(user.getUsername());
+
+        int remainingSlots = limitCards - maxFCards_now;
+
+        // 2. Các tầng logic chặn (Guard Clauses)
+        if (remainingSlots <= 0) {
+            return "Đã hết vé! Hiện còn: 0 vé.";
+        }
+
+        if (remainingSlots <= 5) {
+            flashcardRepository.save(card);
+            return "Cảnh báo: Đã hết số lần ưu tiên! (Chỉ còn " + remainingSlots + " vé). Thẻ vẫn được tạo.";
+        }
         flashcardRepository.save(card);
+        return "Tạo thẻ thành công! Số vé còn lại: " + (remainingSlots - 1);
     }
 
     public List<Flashcard> getDueFlashcards() {

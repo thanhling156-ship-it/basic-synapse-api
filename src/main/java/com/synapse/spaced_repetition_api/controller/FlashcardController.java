@@ -32,7 +32,14 @@ public class FlashcardController {
     // 3. API tạo thẻ mới
     @PostMapping
     public ResponseEntity<String> create(@RequestBody FlashcardDTO dto) {
-        service.saveFlashcard(dto.getContent(), dto.getIntervals());
-        return ResponseEntity.ok("Tạo thẻ thành công!");
+        // Giả sử ông lấy username từ Session hoặc từ chính DTO
+        String message = service.saveFlashcard(dto.getContent(), dto.getIntervals());
+
+        // Nếu thông báo chứa chữ "hết vé" thì trả về 400 (Bad Request), ngược lại trả về 200 (OK)
+        if (message.contains("Đã hết vé")) {
+            return ResponseEntity.badRequest().body(message);
+        }
+
+        return ResponseEntity.ok(message);
     }
 }
