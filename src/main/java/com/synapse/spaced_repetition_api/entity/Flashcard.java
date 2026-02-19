@@ -1,5 +1,6 @@
 package com.synapse.spaced_repetition_api.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import org.hibernate.annotations.Array;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -30,7 +31,8 @@ public class Flashcard {
             name = "owner_username",         // Tên cột trong bảng 'cards'
             referencedColumnName = "username" // Tên cột trong bảng 'users'
     )
-    private User user;
+    @JsonIgnore
+    private User owner;
     // ------------------------------------
 
     @JdbcTypeCode(SqlTypes.VECTOR)
@@ -46,8 +48,8 @@ public class Flashcard {
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
-    public User getUser() { return user; }
-    public void setUser(User user) { this.user = user; }
+    public User getOwner() { return owner; }
+    public void setOwner(User owner) { this.owner = owner; }
 
     public String getContext() { return context; }
     public void setContext(String context) { this.context = context; }

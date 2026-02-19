@@ -1,6 +1,7 @@
 package com.synapse.spaced_repetition_api.service;
 
 
+import com.synapse.spaced_repetition_api.dto.FlashcardDTO;
 import com.synapse.spaced_repetition_api.entity.Flashcard;
 import com.synapse.spaced_repetition_api.entity.User;
 import com.synapse.spaced_repetition_api.repository.FlashcardRepository;
@@ -33,7 +34,7 @@ public class FlashcardService {
         String currentUsername = getCurrentUser().getUsername();
 
         // 2. Tìm thẻ dựa trên cả ID và quyền sở hữu để tránh lưu lệch flashcard vào ID khác
-        return flashcardRepository.findByIdAndUserUsername(cardId, currentUsername)
+        return flashcardRepository.findByIdAndOwnerUsername(cardId, currentUsername)
                 .map(card -> {
                     // Chỉ khi tìm thấy thẻ ĐÚNG CHỦ mới cho phép tính toán
                     calculateNextReviewDate(card, isCorrect);
@@ -56,6 +57,7 @@ public class FlashcardService {
             // Có thể log một cảnh báo ở đây
             // Trả về giá trị an toàn: học lại sau 1 ngày
             card.setNextReviewDate(LocalDateTime.now().plusDays(1));
+            card.setLastTime(LocalDateTime.now());
             return;
         }
 
@@ -63,6 +65,7 @@ public class FlashcardService {
             // TRƯỜNG HỢP SAI: Reset và thoát sớm (Early Return)
             card.setLevel(0);
             card.setNextReviewDate(now.plusHours(6));
+            card.setLastTime(LocalDateTime.now());
             return; // Dừng hàm ở đây, không chạy xuống dưới nữa
         }
 
@@ -78,6 +81,7 @@ public class FlashcardService {
             // Đã tốt nghiệp
             card.setNextReviewDate(now.plusYears(1));
         }
+        card.setLastTime(LocalDateTime.now());
     }
 
     public String saveFlashcard(String content, List<Integer> intervals){
@@ -88,14 +92,14 @@ public class FlashcardService {
         card.setCustomIntervals(intervals);
         card.setNextReviewDate(LocalDateTime.now());
         card.setLastTime(null);
-        card.setUser(getCurrentUser());
+        card.setOwner(getCurrentUser());
         float[] vector = embeddingModel.embed(content);
         card.setEmbedding(vector);
 
-        int maxFCards_now = user.getFlashcards_now();
-        int limitCards = userRepository.findFlashcardsByUsername(user.getUsername());
+        int flashcards_now = user.getFlashcards_now();
+        int limitCards = user.getMaxFlashcards();
 
-        int remainingSlots = limitCards - maxFCards_now;
+        int remainingSlots = limitCards - flashcards_now;
 
         // 2. Các tầng logic chặn (Guard Clauses)
         if (remainingSlots <= 0) {
@@ -103,15 +107,32 @@ public class FlashcardService {
         }
 
         if (remainingSlots <= 5) {
+            flashcards_now+=1;
+            user.setFlashcards_now(flashcards_now);
             flashcardRepository.save(card);
+            userRepository.save(user);
             return "Cảnh báo: Đã hết số lần ưu tiên! (Chỉ còn " + remainingSlots + " vé). Thẻ vẫn được tạo.";
         }
+        flashcards_now+=1;
+        user.setFlashcards_now(flashcards_now);
         flashcardRepository.save(card);
+        userRepository.save(user);
         return "Tạo thẻ thành công! Số vé còn lại: " + (remainingSlots - 1);
     }
 
-    public List<Flashcard> getDueFlashcards() {
-        return flashcardRepository.findByNextReviewDateBefore(LocalDateTime.now());
+    public List<FlashcardDTO> getExpiredCards() {
+        String username = getCurrentUser().getUsername();
+        List<Flashcard> cards = flashcardRepository.findByOwnerUsernameAndNextReviewDateBefore(
+                username, LocalDateTime.now());
+
+        // Chuyển đổi từ Entity sang DTO
+        return cards.stream()
+                .map(card -> FlashcardDTO.builder()
+                        .content(card.getContext())
+                        .intervals(card.getCustomIntervals())
+                        .nextReviewDate(card.getNextReviewDate())
+                        .build())
+                .toList();
     }
 
     public List<Flashcard> searchSemantic(String userText) {

@@ -87,7 +87,7 @@ public class User {
         this.email = email;
     }
 
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL)
     @JsonIgnore
     private List<Flashcard> flashcards; // Chỉ cần thế này để quản lý thẻ
 

@@ -13,15 +13,16 @@ import java.util.Optional;
 
 @Repository
 public interface FlashcardRepository extends JpaRepository<Flashcard, Long> {
-    // Spring sẽ tự hiểu: Tìm các thẻ có NextReviewDate nhỏ hơn (Before) mốc thời gian truyền vào
-    List<Flashcard> findByNextReviewDateBefore(LocalDateTime now);
 
-    // Tìm kiếm thẻ theo nội dung, không phân biệt hoa thường
+    // 1. Đúng: Tìm theo owner -> username
+    List<Flashcard> findByOwnerUsernameAndNextReviewDateBefore(String username, LocalDateTime date);
+
+    // 2. Tìm kiếm thẻ theo nội dung
     List<Flashcard> findByContextContainingIgnoreCase(String context);
 
-    // Thêm tham số username vào hàm tìm kiếm
+    // 3. Native Query: Sử dụng đúng cột owner_username trong DB
     @Query(value = "SELECT * FROM cards " +
-            "WHERE owner_username = :username " + // Khóa chặt "cánh cửa" dữ liệu
+            "WHERE owner_username = :username " +
             "ORDER BY embedding <=> CAST(:queryVector AS vector) " +
             "LIMIT 3", nativeQuery = true)
     List<Flashcard> findNearest(
@@ -29,6 +30,6 @@ public interface FlashcardRepository extends JpaRepository<Flashcard, Long> {
             @Param("username") String username
     );
 
-    // Spring Data JPA sẽ tự hiểu: tìm theo ID của Card và Username của User liên kết
-    Optional<Flashcard> findByIdAndUserUsername(Long id, String username);
+    // 4. SỬA TẠI ĐÂY: Đổi 'UserUsername' thành 'OwnerUsername'
+    Optional<Flashcard> findByIdAndOwnerUsername(Long id, String username);
 }
